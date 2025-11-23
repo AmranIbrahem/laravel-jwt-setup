@@ -36,14 +36,17 @@ class InstallJWTCommand extends Command
             // 5. Update User model
             $this->updateUserModel();
 
-            // 6. Create Form Requests
+            // 6. Create Response Class
+            $this->createResponseClass();
+
+            // 7. Create Form Requests
             $this->createRegisterRequest();
             $this->createLoginRequest();
 
-            // 7. Create routes
+            // 8. Create routes
             $this->createRoutes();
 
-            // 8. Create AuthController
+            // 9. Create AuthController
             $this->createAuthController();
 
             $this->info('✅ JWT setup completed successfully!');
@@ -156,6 +159,86 @@ class InstallJWTCommand extends Command
         }
     }
 
+    protected function createResponseClass()
+    {
+        try {
+            $responsePath = app_path('Http/Responses/Response.php');
+            $directory = dirname($responsePath);
+
+            if (!File::exists($directory)) {
+                File::makeDirectory($directory, 0755, true);
+            }
+
+            if (!File::exists($responsePath)) {
+                $responseContent = '<?php
+
+namespace App\Http\Responses;
+
+use Illuminate\Http\JsonResponse;
+
+class Response
+{
+    public static function AuthSuccess($message, $data, $token, $stateCode): JsonResponse
+    {
+        return response()->json([
+            "message" => $message,
+            "data" => $data,
+            "token" => $token
+        ], $stateCode);
+    }
+
+    public static function logout($message, $stateCode): JsonResponse
+    {
+        return response()->json([
+            "message" => $message
+        ], $stateCode);
+    }
+
+    public static function PasswordSuccess($user, $stateCode): JsonResponse
+    {
+        return response()->json([
+            "message" => "The confirmation code has been sent to your email",
+            "user_id" => $user,
+        ], $stateCode);
+    }
+
+    public static function Message($message, $stateCode): JsonResponse
+    {
+        return response()->json([
+            "message" => $message,
+        ], $stateCode);
+    }
+
+    public static function success(string $message = "Success", $data = null, int $statusCode = 200): JsonResponse
+    {
+        return response()->json([
+            "message" => $message,
+            "data" => $data,
+        ], $statusCode);
+    }
+
+    public static function error(string $message = "Error", $errors = [], int $statusCode = 500): JsonResponse
+    {
+        return response()->json([
+            "message" => $message,
+            "errors" => $errors,
+        ], $statusCode);
+    }
+}';
+
+                if (File::put($responsePath, $responseContent) !== false) {
+                    $this->info('✅ Created Response class');
+                } else {
+                    throw new Exception('Failed to create Response class');
+                }
+            } else {
+                $this->info('✅ Response class already exists');
+            }
+        } catch (Exception $e) {
+            $this->warn('⚠️ Could not create Response class: ' . $e->getMessage());
+        }
+    }
+
     protected function createRegisterRequest()
     {
         try {
@@ -174,6 +257,7 @@ namespace App\Http\Requests\Auth;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use App\Http\Responses\Response;
 
 class RegisterRequest extends FormRequest
 {
@@ -204,11 +288,9 @@ class RegisterRequest extends FormRequest
      */
     protected function failedValidation(Validator $validator)
     {
-        throw new HttpResponseException(response()->json([
-            "success" => false,
-            "message" => "Validation failed",
-            "errors" => $validator->errors()->all(),
-        ], 422));
+        throw new HttpResponseException(
+            Response::error("Validation failed", $validator->errors()->all(), 422)
+        );
     }
 }';
 
@@ -243,6 +325,7 @@ namespace App\Http\Requests\Auth;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use App\Http\Responses\Response;
 
 class LoginRequest extends FormRequest
 {
@@ -272,11 +355,9 @@ class LoginRequest extends FormRequest
      */
     protected function failedValidation(Validator $validator)
     {
-        throw new HttpResponseException(response()->json([
-            "success" => false,
-            "message" => "Validation failed",
-            "errors" => $validator->errors()->all(),
-        ], 422));
+        throw new HttpResponseException(
+            Response::error("Validation failed", $validator->errors()->all(), 422)
+        );
     }
 }';
 
@@ -336,6 +417,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Hash;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Responses\Response;
 use Exception;
 
 class AuthController extends Controller
@@ -353,24 +435,17 @@ class AuthController extends Controller
 
             $token = JWTAuth::fromUser($user);
 
-            return response()->json([
-                "success" => true,
-                "message" => "User registered successfully",
-                "user" => [
-                    "id" => $user->id,
-                    "name" => $user->name,
-                    "email" => $user->email,
-                    "created_at" => $user->created_at
-                ],
-                "token" => $token
-            ], 201);
+            $userData = [
+                "id" => $user->id,
+                "name" => $user->name,
+                "email" => $user->email,
+                "created_at" => $user->created_at
+            ];
+
+            return Response::AuthSuccess("User registered successfully", $userData, $token, 201);
 
         } catch (Exception $e) {
-            return response()->json([
-                "success" => false,
-                "message" => "Registration failed",
-                "error" => $e->getMessage()
-            ], 500);
+            return Response::error("Registration failed", $e->getMessage(), 500);
         }
     }
 
@@ -386,47 +461,28 @@ class AuthController extends Controller
             $user = User::where("email", $credentials["email"])->first();
 
             if (!$user) {
-                return response()->json([
-                    "success" => false,
-                    "message" => "Email address not found",
-                    "hint" => "Please check your email or register a new account"
-                ], 401);
+                return Response::error("Email address not found", [], 401);
             }
 
             if (!Hash::check($credentials["password"], $user->password)) {
-                return response()->json([
-                    "success" => false,
-                    "message" => "Incorrect password",
-                    "hint" => "Please check your password or use forgot password"
-                ], 401);
+                return Response::error("Incorrect password", [], 401);
             }
 
             if (!$token = JWTAuth::attempt($credentials)) {
-                return response()->json([
-                    "success" => false,
-                    "message" => "Authentication failed",
-                    "hint" => "Please try again later"
-                ], 401);
+                return Response::error("Authentication failed", [], 401);
             }
 
-            return response()->json([
-                "success" => true,
-                "message" => "Login successful",
-                "token" => $token,
-                "user" => [
-                    "id" => $user->id,
-                    "name" => $user->name,
-                    "email" => $user->email,
-                    "created_at" => $user->created_at
-                ]
-            ]);
+            $userData = [
+                "id" => $user->id,
+                "name" => $user->name,
+                "email" => $user->email,
+                "created_at" => $user->created_at
+            ];
+
+            return Response::AuthSuccess("Login successful", $userData, $token, 200);
 
         } catch (Exception $e) {
-            return response()->json([
-                "success" => false,
-                "message" => "Login failed due to server error",
-                "error" => $e->getMessage()
-            ], 500);
+            return Response::error("Login failed due to server error", $e->getMessage(), 500);
         }
     }
 
@@ -435,17 +491,10 @@ class AuthController extends Controller
         try {
             JWTAuth::invalidate(JWTAuth::getToken());
 
-            return response()->json([
-                "success" => true,
-                "message" => "Successfully logged out"
-            ]);
+            return Response::logout("Successfully logged out", 200);
 
         } catch (Exception $e) {
-            return response()->json([
-                "success" => false,
-                "message" => "Logout failed",
-                "error" => $e->getMessage()
-            ], 500);
+            return Response::error("Logout failed", $e->getMessage(), 500);
         }
     }
 
@@ -454,18 +503,10 @@ class AuthController extends Controller
         try {
             $newToken = JWTAuth::refresh(JWTAuth::getToken());
 
-            return response()->json([
-                "success" => true,
-                "message" => "Token refreshed successfully",
-                "token" => $newToken,
-            ]);
+            return Response::success("Token refreshed successfully", ["token" => $newToken], 200);
 
         } catch (Exception $e) {
-            return response()->json([
-                "success" => false,
-                "message" => "Token refresh failed",
-                "error" => $e->getMessage()
-            ], 500);
+            return Response::error("Token refresh failed", $e->getMessage(), 500);
         }
     }
 }';
