@@ -36,10 +36,14 @@ class InstallJWTCommand extends Command
             // 5. Update User model
             $this->updateUserModel();
 
-            // 6. Create routes
+            // 6. Create Form Requests
+            $this->createRegisterRequest();
+            $this->createLoginRequest();
+
+            // 7. Create routes
             $this->createRoutes();
 
-            // 7. Create AuthController
+            // 8. Create AuthController
             $this->createAuthController();
 
             $this->info('✅ JWT setup completed successfully!');
@@ -152,6 +156,143 @@ class InstallJWTCommand extends Command
         }
     }
 
+    protected function createRegisterRequest()
+    {
+        try {
+            $requestPath = app_path('Http/Requests/Auth/RegisterRequest.php');
+            $directory = dirname($requestPath);
+
+            if (!File::exists($directory)) {
+                File::makeDirectory($directory, 0755, true);
+            }
+
+            if (!File::exists($requestPath)) {
+                $registerRequestContent = '<?php
+
+namespace App\Http\Requests\Auth;
+
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
+
+class RegisterRequest extends FormRequest
+{
+    /**
+     * Determine if the user is authorized to make this request.
+     */
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     */
+    public function rules(): array
+    {
+        return [
+            "name" => "required|string|max:255",
+            "email" => "required|email|unique:users,email",
+            "password" => "required|string|min:6|confirmed",
+        ];
+    }
+
+    /**
+     * Handle a failed validation attempt.
+     */
+    protected function failedValidation(Validator $validator)
+    {
+        throw new HttpResponseException(response()->json([
+            "success" => false,
+            "message" => "Validation failed",
+            "errors" => $validator->errors()->all(),
+        ], 422));
+    }
+}';
+
+                if (File::put($requestPath, $registerRequestContent) !== false) {
+                    $this->info('✅ Created RegisterRequest');
+                } else {
+                    throw new Exception('Failed to create RegisterRequest');
+                }
+            } else {
+                $this->info('✅ RegisterRequest already exists');
+            }
+        } catch (Exception $e) {
+            $this->warn('⚠️ Could not create RegisterRequest: ' . $e->getMessage());
+        }
+    }
+
+    protected function createLoginRequest()
+    {
+        try {
+            $requestPath = app_path('Http/Requests/Auth/LoginRequest.php');
+            $directory = dirname($requestPath);
+
+            if (!File::exists($directory)) {
+                File::makeDirectory($directory, 0755, true);
+            }
+
+            if (!File::exists($requestPath)) {
+                $loginRequestContent = '<?php
+
+namespace App\Http\Requests\Auth;
+
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
+
+class LoginRequest extends FormRequest
+{
+    /**
+     * Determine if the user is authorized to make this request.
+     */
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     */
+    public function rules(): array
+    {
+        return [
+            "email" => "required|email",
+            "password" => "required|string|min:6",
+        ];
+    }
+
+    /**
+     * Handle a failed validation attempt.
+     */
+    protected function failedValidation(Validator $validator)
+    {
+        throw new HttpResponseException(response()->json([
+            "success" => false,
+            "message" => "Validation failed",
+            "errors" => $validator->errors()->all(),
+        ], 422));
+    }
+}';
+
+                if (File::put($requestPath, $loginRequestContent) !== false) {
+                    $this->info('✅ Created LoginRequest');
+                } else {
+                    throw new Exception('Failed to create LoginRequest');
+                }
+            } else {
+                $this->info('✅ LoginRequest already exists');
+            }
+        } catch (Exception $e) {
+            $this->warn('⚠️ Could not create LoginRequest: ' . $e->getMessage());
+        }
+    }
+
     protected function createRoutes()
     {
         try {
@@ -193,32 +334,21 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
+use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\LoginRequest;
 use Exception;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
+    public function register(RegisterRequest $request)
     {
         try {
-            $validator = Validator::make($request->all(), [
-                "name" => "required|string|max:255",
-                "email" => "required|string|email|max:255|unique:users",
-                "password" => "required|string|min:6|confirmed",
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    "success" => false,
-                    "message" => "Validation failed",
-                    "errors" => $validator->errors()
-                ], 400);
-            }
+            $validated = $request->validated();
 
             $user = User::create([
-                "name" => $request->name,
-                "email" => $request->email,
-                "password" => Hash::make($request->password),
+                "name" => $validated["name"],
+                "email" => $validated["email"],
+                "password" => Hash::make($validated["password"]),
             ]);
 
             $token = JWTAuth::fromUser($user);
@@ -244,25 +374,16 @@ class AuthController extends Controller
         }
     }
 
-    public function login(Request $request)
+    public function login(LoginRequest $request)
     {
         try {
-            $credentials = $request->only(["email", "password"]);
+            $validated = $request->validated();
+            $credentials = [
+                "email" => $validated["email"],
+                "password" => $validated["password"]
+            ];
 
-            $validator = Validator::make($credentials, [
-                "email" => "required|email",
-                "password" => "required|string|min:6"
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    "success" => false,
-                    "message" => "Validation failed",
-                    "errors" => $validator->errors()
-                ], 400);
-            }
-
-            $user = User::where(\'email\', $credentials[\'email\'])->first();
+            $user = User::where("email", $credentials["email"])->first();
 
             if (!$user) {
                 return response()->json([
@@ -272,7 +393,7 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            if (!Hash::check($credentials[\'password\'], $user->password)) {
+            if (!Hash::check($credentials["password"], $user->password)) {
                 return response()->json([
                     "success" => false,
                     "message" => "Incorrect password",
@@ -347,8 +468,6 @@ class AuthController extends Controller
             ], 500);
         }
     }
-
-
 }';
 
                 if (File::put($controllerPath, $controllerContent) !== false) {
