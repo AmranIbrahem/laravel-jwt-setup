@@ -125,10 +125,18 @@ class InstallJWTCommand extends Command
     {
         $routesPath = base_path('routes/api.php');
 
-        $jwtRoutes = "\n\n// JWT Authentication Routes\nRoute::group(['prefix' => 'auth'], function () {\n    Route::post('register', [App\Http\Controllers\AuthController::class, 'register']);\n    Route::post('login', [App\Http\Controllers\AuthController::class, 'login']);\n    \n    Route::middleware('auth:api')->group(function () {\n        Route::post('logout', [App\Http\Controllers\AuthController::class, 'logout']);\n        Route::post('refresh', [App\Http\Controllers\AuthController::class, 'refresh']);\n        Route::get('me', [App\Http\Controllers\AuthController::class, 'me']);\n    });\n});";
+        if (File::exists($routesPath)) {
+            $content = File::get($routesPath);
 
-        File::append($routesPath, $jwtRoutes);
-        $this->info('✅ Added JWT routes to routes/api.php');
+            if (!str_contains($content, 'AuthController')) {
+                $jwtRoutes = "\n\n// JWT Authentication Routes\nRoute::post('register', [App\Http\Controllers\AuthController::class, 'register']);\nRoute::post('login', [App\Http\Controllers\AuthController::class, 'login']);\nRoute::middleware('auth:api')->post('logout', [App\Http\Controllers\AuthController::class, 'logout']);\nRoute::middleware('auth:api')->post('refresh', [App\Http\Controllers\AuthController::class, 'refresh']);\nRoute::middleware('auth:api')->get('me', [App\Http\Controllers\AuthController::class, 'me']);";
+
+                File::append($routesPath, $jwtRoutes);
+                $this->info('✅ Added JWT routes to routes/api.php');
+            } else {
+                $this->info('✅ JWT routes already exist in routes/api.php');
+            }
+        }
     }
 
     protected function createAuthController()
@@ -148,42 +156,42 @@ use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
-    public function register(Request \$request)
+    public function register(Request $request)
     {
-        \$validator = Validator::make(\$request->all(), [
+        $validator = Validator::make($request->all(), [
             "name" => "required|string|max:255",
             "email" => "required|string|email|max:255|unique:users",
             "password" => "required|string|min:6|confirmed",
         ]);
 
         if (\$validator->fails()) {
-            return response()->json(\$validator->errors(), 400);
+            return response()->json($validator->errors(), 400);
         }
 
-        \$user = User::create([
-            "name" => \$request->name,
-            "email" => \$request->email,
-            "password" => Hash::make(\$request->password),
+        $user = User::create([
+            "name" => $request->name,
+            "email" => $request->email,
+            "password" => Hash::make($request->password),
         ]);
 
-        \$token = JWTAuth::fromUser(\$user);
+        $token = JWTAuth::fromUser($user);
 
         return response()->json([
-            "user" => \$user,
-            "token" => \$token
+            "user" => $user,
+            "token" => $token
         ], 201);
     }
 
-    public function login(Request \$request)
+    public function login(Request $request)
     {
-        \$credentials = \$request->only(["email", "password"]);
+        $credentials = $request->only(["email", "password"]);
 
-        if (!\$token = JWTAuth::attempt(\$credentials)) {
+        if (!$token = JWTAuth::attempt($credentials)) {
             return response()->json(["error" => "Unauthorized"], 401);
         }
 
         return response()->json([
-            "token" => \$token
+            "token" => $token
         ]);
     }
 
