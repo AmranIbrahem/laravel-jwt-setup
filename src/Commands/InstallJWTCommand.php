@@ -226,7 +226,12 @@ class AuthController extends Controller
             return response()->json([
                 "success" => true,
                 "message" => "User registered successfully",
-                "user" => $user,
+                "user" => [
+                    "id" => $user->id,
+                    "name" => $user->name,
+                    "email" => $user->email,
+                    "created_at" => $user->created_at
+                ],
                 "token" => $token
             ], 201);
 
@@ -244,23 +249,141 @@ class AuthController extends Controller
         try {
             $credentials = $request->only(["email", "password"]);
 
+            // تحقق من وجود البيانات المطلوبة
+            $validator = Validator::make($credentials, [
+                "email" => "required|email",
+                "password" => "required|string|min:6"
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $validator->errors()
+                ], 400);
+            }
+
+            // تحقق أولاً من وجود المستخدم بالبريد الإلكتروني
+            $user = User::where(\'email\', $credentials[\'email\'])->first();
+
+            if (!$user) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Email address not found",
+                    "hint" => "Please check your email or register a new account"
+                ], 401);
+            }
+
+            // ثم تحقق من كلمة المرور
+            if (!Hash::check($credentials[\'password\'], $user->password)) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Incorrect password",
+                    "hint" => "Please check your password or use forgot password"
+                ], 401);
+            }
+
+            // محاولة إنشاء token
             if (!$token = JWTAuth::attempt($credentials)) {
                 return response()->json([
                     "success" => false,
-                    "message" => "Invalid credentials"
+                    "message" => "Authentication failed",
+                    "hint" => "Please try again later"
                 ], 401);
             }
 
             return response()->json([
                 "success" => true,
                 "message" => "Login successful",
-                "token" => $token
+                "token" => $token,
+                "token_type" => "bearer",
+                "expires_in" => auth()->factory()->getTTL() * 60,
+                "user" => [
+                    "id" => $user->id,
+                    "name" => $user->name,
+                    "email" => $user->email,
+                    "created_at" => $user->created_at
+                ]
             ]);
 
         } catch (Exception $e) {
             return response()->json([
                 "success" => false,
-                "message" => "Login failed",
+                "message" => "Login failed due to server error",
+                "error" => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function logout(Request $request)
+    {
+        try {
+            JWTAuth::invalidate(JWTAuth::getToken());
+
+            return response()->json([
+                "success" => true,
+                "message" => "Successfully logged out"
+            ]);
+
+        } catch (Exception $e) {
+            return response()->json([
+                "success" => false,
+                "message" => "Logout failed",
+                "error" => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function refresh(Request $request)
+    {
+        try {
+            $newToken = JWTAuth::refresh(JWTAuth::getToken());
+
+            return response()->json([
+                "success" => true,
+                "message" => "Token refreshed successfully",
+                "token" => $newToken,
+                "token_type" => "bearer",
+                "expires_in" => auth()->factory()->getTTL() * 60
+            ]);
+
+        } catch (Exception $e) {
+            return response()->json([
+                "success" => false,
+                "message" => "Token refresh failed",
+                "error" => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function me(Request $request)
+    {
+        try {
+            $user = JWTAuth::user();
+
+            if (!$user) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "User not found"
+                ], 404);
+            }
+
+            return response()->json([
+                "success" => true,
+                "message" => "User data retrieved successfully",
+                "user" => [
+                    "id" => $user->id,
+                    "name" => $user->name,
+                    "email" => $user->email,
+                    "created_at" => $user->created_at,
+                    "updated_at" => $user->updated_at
+                ]
+            ]);
+
+        } catch (Exception $e) {
+            return response()->json([
+                "success" => false,
+                "message" => "Failed to get user data",
                 "error" => $e->getMessage()
             ], 500);
         }
