@@ -161,7 +161,7 @@ class InstallJWTCommand extends Command
                 $content = File::get($routesPath);
 
                 if (!str_contains($content, 'AuthController')) {
-                    $jwtRoutes = "\n\n// JWT Authentication Routes\nRoute::post('register', [AuthController::class, 'register']);\nRoute::post('login', [AuthController::class, 'login']);";
+                    $jwtRoutes = "\n\n// JWT Authentication Routes\nuse App\Http\Controllers\AuthController;\n\nRoute::group(['prefix' => 'auth'], function () {\n    // Public routes\n    Route::post('register', [AuthController::class, 'register']);\n    Route::post('login', [AuthController::class, 'login']);\n    \n    // Protected routes (require authentication)\n    Route::middleware('auth:api')->group(function () {\n        Route::post('logout', [AuthController::class, 'logout']);\n        Route::post('refresh', [AuthController::class, 'refresh']);\n    });\n});";
 
                     if (File::append($routesPath, $jwtRoutes) !== false) {
                         $this->info('✅ Added JWT routes to routes/api.php');
@@ -249,7 +249,6 @@ class AuthController extends Controller
         try {
             $credentials = $request->only(["email", "password"]);
 
-            // تحقق من وجود البيانات المطلوبة
             $validator = Validator::make($credentials, [
                 "email" => "required|email",
                 "password" => "required|string|min:6"
@@ -263,7 +262,6 @@ class AuthController extends Controller
                 ], 400);
             }
 
-            // تحقق أولاً من وجود المستخدم بالبريد الإلكتروني
             $user = User::where(\'email\', $credentials[\'email\'])->first();
 
             if (!$user) {
@@ -274,7 +272,6 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            // ثم تحقق من كلمة المرور
             if (!Hash::check($credentials[\'password\'], $user->password)) {
                 return response()->json([
                     "success" => false,
@@ -283,7 +280,6 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            // محاولة إنشاء token
             if (!$token = JWTAuth::attempt($credentials)) {
                 return response()->json([
                     "success" => false,
@@ -296,8 +292,6 @@ class AuthController extends Controller
                 "success" => true,
                 "message" => "Login successful",
                 "token" => $token,
-                "token_type" => "bearer",
-                "expires_in" => auth()->factory()->getTTL() * 60,
                 "user" => [
                     "id" => $user->id,
                     "name" => $user->name,
@@ -343,8 +337,6 @@ class AuthController extends Controller
                 "success" => true,
                 "message" => "Token refreshed successfully",
                 "token" => $newToken,
-                "token_type" => "bearer",
-                "expires_in" => auth()->factory()->getTTL() * 60
             ]);
 
         } catch (Exception $e) {
@@ -356,38 +348,7 @@ class AuthController extends Controller
         }
     }
 
-    public function me(Request $request)
-    {
-        try {
-            $user = JWTAuth::user();
 
-            if (!$user) {
-                return response()->json([
-                    "success" => false,
-                    "message" => "User not found"
-                ], 404);
-            }
-
-            return response()->json([
-                "success" => true,
-                "message" => "User data retrieved successfully",
-                "user" => [
-                    "id" => $user->id,
-                    "name" => $user->name,
-                    "email" => $user->email,
-                    "created_at" => $user->created_at,
-                    "updated_at" => $user->updated_at
-                ]
-            ]);
-
-        } catch (Exception $e) {
-            return response()->json([
-                "success" => false,
-                "message" => "Failed to get user data",
-                "error" => $e->getMessage()
-            ], 500);
-        }
-    }
 }';
 
                 if (File::put($controllerPath, $controllerContent) !== false) {
