@@ -1,0 +1,24 @@
+{
+    "name": "amranibrahem/laravel-jwt-setup",
+    "description": "Auto setup JWT authentication for Laravel",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "AmranIbrahem\\JWTSetup\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "AmranIbrahem\\JWTSetup\\JWTServiceProvider"
+            ]
+        }
+    },
+    "require": {
+        "php": "^8.0",
+        "tymon/jwt-auth": "^2.0"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
