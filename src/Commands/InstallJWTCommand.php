@@ -129,7 +129,7 @@ class InstallJWTCommand extends Command
             $content = File::get($routesPath);
 
             if (!str_contains($content, 'AuthController')) {
-                $jwtRoutes = "\n\n// JWT Authentication Routes\nRoute::post('register', [App\Http\Controllers\AuthController::class, 'register']);\nRoute::post('login', [App\Http\Controllers\AuthController::class, 'login']);\nRoute::middleware('auth:api')->post('logout', [App\Http\Controllers\AuthController::class, 'logout']);\nRoute::middleware('auth:api')->post('refresh', [App\Http\Controllers\AuthController::class, 'refresh']);\nRoute::middleware('auth:api')->get('me', [App\Http\Controllers\AuthController::class, 'me']);";
+                $jwtRoutes = "\n\n// JWT Authentication Routes\nRoute::post('register', [AuthController::class, 'register']);\nRoute::post('login', [AuthController::class, 'login']);";
 
                 File::append($routesPath, $jwtRoutes);
                 $this->info('✅ Added JWT routes to routes/api.php');
@@ -164,7 +164,7 @@ class AuthController extends Controller
             "password" => "required|string|min:6|confirmed",
         ]);
 
-        if (\$validator->fails()) {
+        if ($validator->fails()) {
             return response()->json($validator->errors(), 400);
         }
 
@@ -195,23 +195,6 @@ class AuthController extends Controller
         ]);
     }
 
-    public function me()
-    {
-        return response()->json(auth()->user());
-    }
-
-    public function logout()
-    {
-        auth()->logout();
-        return response()->json(["message" => "Successfully logged out"]);
-    }
-
-    public function refresh()
-    {
-        return response()->json([
-            "token" => auth()->refresh()
-        ]);
-    }
 }';
 
             File::put($controllerPath, $controllerContent);
