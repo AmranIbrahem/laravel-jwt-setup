@@ -461,15 +461,15 @@ class AuthController extends Controller
             $user = User::where("email", $credentials["email"])->first();
 
             if (!$user) {
-                return Response::error("Email address not found", [], 401);
+                return Response::Message("Email address not found", 401);
             }
 
             if (!Hash::check($credentials["password"], $user->password)) {
-                return Response::error("Incorrect password", [], 401);
+                return Response::Message("Incorrect password", 401);
             }
 
             if (!$token = JWTAuth::attempt($credentials)) {
-                return Response::error("Authentication failed", [], 401);
+                return Response::Message("Authentication failed", 401);
             }
 
             $userData = [
