@@ -127,17 +127,41 @@ class InstallJWTCommand extends Command
     protected function addJWTToUserModel($content)
     {
         try {
-            // Add use statement after namespace
+            // Add use statements after namespace
             if (str_contains($content, 'namespace App\Models;')) {
+                $useStatements = "use Tymon\JWTAuth\Contracts\JWTSubject;\nuse Illuminate\\Foundation\\Auth\\User as Authenticatable;";
+
+                // إضافة use statements بعد namespace
                 $content = str_replace(
                     'namespace App\Models;',
-                    "namespace App\Models;\n\nuse Tymon\JWTAuth\Contracts\JWTSubject;",
+                    "namespace App\Models;\n\n{$useStatements}",
                     $content
                 );
             }
 
-            // Implement interface
-            if (str_contains($content, 'class User extends Authenticatable')) {
+            // Replace Model with Authenticatable and implement JWTSubject
+            if (str_contains($content, 'class User extends Model')) {
+                $content = str_replace(
+                    'class User extends Model',
+                    'class User extends Authenticatable implements JWTSubject',
+                    $content
+                );
+
+                // إزالة use Illuminate\Database\Eloquent\Model; إذا كانت موجودة
+                $content = str_replace(
+                    "use Illuminate\\Database\\Eloquent\\Model;\n",
+                    "",
+                    $content
+                );
+                $content = str_replace(
+                    "use Illuminate\\Database\\Eloquent\\Model;",
+                    "",
+                    $content
+                );
+            }
+
+            // If extends Authenticatable already, just add JWTSubject
+            elseif (str_contains($content, 'class User extends Authenticatable') && !str_contains($content, 'implements JWTSubject')) {
                 $content = str_replace(
                     'class User extends Authenticatable',
                     'class User extends Authenticatable implements JWTSubject',
@@ -145,12 +169,14 @@ class InstallJWTCommand extends Command
                 );
             }
 
-            // Add JWT methods before the last closing brace
-            $jwtMethods = "\n    /**\n     * Get the identifier that will be stored in the subject claim of the JWT.\n     */\n    public function getJWTIdentifier()\n    {\n        return \$this->getKey();\n    }\n\n    /**\n     * Return a key value array, containing any custom claims to be added to the JWT.\n     */\n    public function getJWTCustomClaims()\n    {\n        return [];\n    }";
+            // Add JWT methods before the last closing brace if not exists
+            if (!str_contains($content, 'getJWTIdentifier')) {
+                $jwtMethods = "\n    /**\n     * Get the identifier that will be stored in the subject claim of the JWT.\n     */\n    public function getJWTIdentifier()\n    {\n        return \$this->getKey();\n    }\n\n    /**\n     * Return a key value array, containing any custom claims to be added to the JWT.\n     */\n    public function getJWTCustomClaims()\n    {\n        return [];\n    }";
 
-            $lastBrace = strrpos($content, '}');
-            if ($lastBrace !== false) {
-                $content = substr($content, 0, $lastBrace) . $jwtMethods . "\n}";
+                $lastBrace = strrpos($content, '}');
+                if ($lastBrace !== false) {
+                    $content = substr($content, 0, $lastBrace) . $jwtMethods . "\n}";
+                }
             }
 
             return $content;
@@ -158,7 +184,6 @@ class InstallJWTCommand extends Command
             throw new Exception('Failed to modify User model content: ' . $e->getMessage());
         }
     }
-
     protected function createResponseClass()
     {
         try {
