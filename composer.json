@@ -1,11 +1,48 @@
 {
     "name": "amranibrahem/laravel-jwt-setup",
-    "description": "Auto setup JWT authentication for Laravel",
+    "description": "Automatically install and configure JWT authentication for Laravel with a single command - complete setup with controllers, requests, responses, and routes",
+    "keywords": [
+        "laravel",
+        "jwt",
+        "authentication",
+        "api",
+        "auth",
+        "auto-setup",
+        "jwt-auth",
+        "rest-api",
+        "laravel-jwt",
+        "token",
+        "security",
+        "auto-configure"
+    ],
+    "homepage": "https://github.com/amranibrahem/laravel-jwt-setup",
     "type": "library",
     "license": "MIT",
+    "authors": [
+        {
+            "name": "Amran Ibrahem",
+            "email": "amranibrahem2001@gmail.com",
+            "homepage": "https://github.com/amranibrahem",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.0",
+        "laravel/framework": "^9.0|^10.0|^11.0",
+        "tymon/jwt-auth": "^2.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0|^10.0",
+        "orchestra/testbench": "^7.0|^8.0"
+    },
     "autoload": {
         "psr-4": {
             "AmranIbrahem\\JWTSetup\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AmranIbrahem\\JWTSetup\\Tests\\": "tests/"
         }
     },
     "extra": {
@@ -15,10 +52,16 @@
             ]
         }
     },
-    "require": {
-        "php": "^8.0",
-        "tymon/jwt-auth": "^2.0"
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test-coverage": "vendor/bin/phpunit --coverage-html coverage"
     },
-    "minimum-stability": "dev",
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "stable",
     "prefer-stable": true
 }
